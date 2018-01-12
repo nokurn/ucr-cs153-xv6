@@ -29,7 +29,7 @@ OBJS = \
 	vm.o\
 
 # Cross-compiling (e.g., on Mac OS X)
-# TOOLPREFIX = i386-jos-elf
+TOOLPREFIX = i386-xv6-elf-
 
 # Using native tools (e.g., on X86 Linux)
 #TOOLPREFIX = 
@@ -51,7 +51,7 @@ TOOLPREFIX := $(shell if i386-jos-elf-objdump -i 2>&1 | grep '^elf32-i386$$' >/d
 endif
 
 # If the makefile can't find QEMU, specify its path here
-# QEMU = qemu-system-i386
+QEMU = qemu-system-i386
 
 # Try to infer the correct QEMU
 ifndef QEMU
@@ -74,6 +74,7 @@ endif
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
+GDB = $(TOOLPREFIX)gdb
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
@@ -227,11 +228,11 @@ qemu-nox: fs.img xv6.img
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
 qemu-gdb: fs.img xv6.img .gdbinit
-	@echo "*** Now run 'gdb'." 1>&2
+	@echo "*** Now run '$(GDB)'." 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
 
 qemu-nox-gdb: fs.img xv6.img .gdbinit
-	@echo "*** Now run 'gdb'." 1>&2
+	@echo "*** Now run '$(GDB)'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
 # CUT HERE
@@ -277,3 +278,9 @@ tar:
 	(cd /tmp; tar cf - xv6) | gzip >xv6-rev10.tar.gz  # the next one will be 10 (9/17)
 
 .PHONY: dist-test dist
+
+stop:
+	killall $(QEMU)
+debug:
+	$(GDB) -q
+.PHONY: stop debug
