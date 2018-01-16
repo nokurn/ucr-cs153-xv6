@@ -329,17 +329,19 @@ waitpid(int pid, int *status, int options)
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
-      while(p->state != ZOMBIE){
+      while(p->state != UNUSED && p->state != ZOMBIE){
         sleep(curproc, &ptable.lock);
       }
-      kfree(p->kstack);
-      p->kstack = 0;
-      freevm(p->pgdir);
+      if(p->state == ZOMBIE){
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+      }
       p->pid = 0;
-      p->parent = 0;
-      p->name[0] = 0;
-      p->killed = 0;
-      p->state = UNUSED;
       if(status != 0){
         *status = p->status;
       }
