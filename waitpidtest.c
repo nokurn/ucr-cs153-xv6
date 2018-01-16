@@ -1,42 +1,46 @@
 #include "types.h"
-#include "stat.h"
 #include "user.h"
-#include "fs.h"
 
-#define TEST_STATUS 3
+#define NUMBER_PIDS 4
 
 int
 main(int argc, char *argv[])
 {
-  int pid;
+  int i;
+  int pids[NUMBER_PIDS] = {0};
   int status;
 
-  pid = fork();
-  if(pid < 0){
-    printf(2, "waitpidtest: fork failed\n");
-    exit(-1);
+  for(i = 0; i < NUMBER_PIDS && (pids[i] = fork()) > 0; i++){
+    printf(1, "waitpidtest: forked child %d\n", i);
   }
 
-  if(pid == 0){
-    // In child
-    printf(1, "waitpidtest: exiting child\n");
-    exit(TEST_STATUS);
+  if(i < NUMBER_PIDS){
+    if(pids[i] < 0){
+      printf(2, "waitpidtest: fork %d failed\n", i);
+      exit(-1);
+    }
+
+    if(pids[i] == 0){
+      exit(i);
+    }
   }
   else{
-    // In parent
-    printf(1, "waitpidtest: waiting for pid %d\n", pid);
+    for(i = 0; i < NUMBER_PIDS; i++){
+      printf(1, "waitpidtest: waiting for pid %d (child %d)\n", pids[i], i);
 
-    if(waitpid(pid, &status, 0) != pid){
-      printf(2, "waitpidtest: waitpid failed\n");
-      exit(-1);
+      if(waitpid(pids[i], &status, 0) != pids[i]){
+        printf(2, "waitpidtest: waitpid failed\n");
+        continue;
+      }
+
+      if(status != i){
+        printf(2, "waitpidtest: returned wrong status %d\n", status);
+        continue;
+      }
+
+      printf(1, "waitpidtest: received correct status %d\n", status);
     }
-
-    if(status != TEST_STATUS){
-      printf(2, "waitpidtest: returned wrong status %d\n", status);
-      exit(-1);
-    }
-
-    printf(1, "waitpidtest: received correct status %d\n", status);
-    exit(status);
   }
+
+  exit(0);
 }
