@@ -283,7 +283,7 @@ tar:
 .PHONY: dist-test dist
 
 stop:
-	killall $(QEMU)
+	kill $(shell pgrep qemu)
 debug:
 	$(GDB) -q
 .PHONY: stop debug
