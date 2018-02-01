@@ -329,10 +329,14 @@ waitpid(int pid, int *status, int options)
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
+      // Once the process is found, sleep while waiting for it to become a
+      // zombie.  In case the ZOMBIE state is consumed somewhere else, also
+      // check for an UNUSED state to ensure that we do not wait forever.
       while(p->state != UNUSED && p->state != ZOMBIE){
         sleep(curproc, &ptable.lock);
       }
       if(p->state == ZOMBIE){
+        // If we caught the process in a ZOMBIE state, clean up.
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
@@ -341,6 +345,10 @@ waitpid(int pid, int *status, int options)
         p->killed = 0;
         p->state = UNUSED;
       }
+      // Either way, reset the pid and copy the status out (if requested).
+      // Even if we caught the process in an UNUSED state, only the alloc and
+      // exit functions modify the status, so it should still be the one set
+      // when the process exited and is safe to copy.
       p->pid = 0;
       if(status != 0){
         *status = p->status;
