@@ -143,6 +143,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->priority = 0; // Start at the highest priority
+  p->gpriority = 0;
   p->pid = nextpid++;
   p->status = 0;
 
@@ -255,7 +256,8 @@ fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
-  np->priority = curproc->priority; // Inherit the parent priority
+  np->priority = curproc->gpriority; // Inherit the parent priority
+  np->gpriority = curproc->gpriority;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -499,6 +501,8 @@ yield(void)
   struct proc *p;
   acquire(&ptable.lock);  //DOC: yieldlock
   p = myproc();
+  if(p->priority < NPRIORITY - 1)
+    p->priority++; // Reduce priority after being preempted.
   pushproc(p);
   sched();
   release(&ptable.lock);
@@ -551,6 +555,8 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  if(p->priority > 0)
+    p->priority--; // Increase priority when waiting.
 
   sched();
 
@@ -636,7 +642,8 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s %d", p->pid, state, p->name, p->priority);
+    cprintf("%d %s %s %d %d", p->pid, state, p->name, p->priority,
+        p->gpriority);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -659,7 +666,7 @@ getpriority(int pid)
       // Only retrieve the priority if the process is found and is not a
       // zombie.
       if(p->status != ZOMBIE)
-        priority = p->priority;
+        priority = p->gpriority;
       break;
     }
   }
@@ -695,6 +702,7 @@ setpriority(int pid, int priority)
         // changing the priority to requeue it.
         popproc(p); // Does not change state so we can requeue.
 
+      p->gpriority = priority;
       p->priority = priority;
 
       // If the process was queued to be run before the priority was
