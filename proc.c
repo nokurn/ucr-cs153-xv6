@@ -10,6 +10,7 @@
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct proc *pq[NPRIORITY][NPROC];
 } ptable;
 
 static struct proc *initproc;
@@ -65,6 +66,60 @@ myproc(void) {
   return p;
 }
 
+// Marks a process as runnable and pushes it onto the priority queue for
+// its priority level.  Must be called with ptable.lock held.
+static void
+pushproc(struct proc *p)
+{
+  struct proc **pq;
+  int i;
+
+  if(p == 0 || p->priority < 0 || p->priority >= NPRIORITY)
+    panic("pushproc: bad process or priority");
+
+  pq = ptable.pq[p->priority];
+  for(i = 0; i < NPROC && pq[i] != 0; i++){
+    // If the process is already in the queue, don't push it.
+    if(pq[i] == p){
+      cprintf("found p in pq\n");
+      return;
+    }
+  }
+
+  if(i == NPROC)
+    panic("pushproc: full process queue");
+
+  p->state = RUNNABLE;
+  pq[i] = p;
+}
+
+// Removes a process from the priority queue for its priority level.
+// Must be called with ptable.lock held.  Does not change the state of
+// the process.
+static void
+popproc(struct proc *p)
+{
+  struct proc **pq;
+  int i;
+  int shift;
+
+  if(p == 0 || p->priority < 0 || p->priority >= NPRIORITY)
+    panic("popproc: bad process or priority");
+
+  pq = ptable.pq[p->priority];
+  for(i = 0, shift = 0; i < NPROC && pq[i] != 0; i++){
+    if(pq[i] == p)
+      shift = 1;
+    if(shift){
+      if(i == NPROC - 1)
+        pq[i] = 0;
+      else{
+        pq[i] = pq[i + 1];
+      }
+    }
+  }
+}
+
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -87,6 +142,7 @@ allocproc(void)
 
 found:
   p->state = EMBRYO;
+  p->priority = 0; // Start at the highest priority
   p->pid = nextpid++;
   p->status = 0;
 
@@ -149,7 +205,7 @@ userinit(void)
   // because the assignment might not be atomic.
   acquire(&ptable.lock);
 
-  p->state = RUNNABLE;
+  pushproc(p);
 
   release(&ptable.lock);
 }
@@ -199,6 +255,7 @@ fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
+  np->priority = curproc->priority; // Inherit the parent priority
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -215,7 +272,7 @@ fork(void)
 
   acquire(&ptable.lock);
 
-  np->state = RUNNABLE;
+  pushproc(np);
 
   release(&ptable.lock);
 
@@ -373,6 +430,7 @@ waitpid(int pid, int *status, int options)
 void
 scheduler(void)
 {
+  int priority;
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
@@ -381,10 +439,11 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
+    // Loop over process priority queues looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+    for(priority = 0; priority < NPRIORITY; priority++){
+      p = ptable.pq[priority][0];
+      if(p == 0)
         continue;
 
       // Switch to chosen process.  It is the process's job
@@ -392,6 +451,7 @@ scheduler(void)
       // before jumping back to us.
       c->proc = p;
       switchuvm(p);
+      popproc(p); // Remove from the priority queue while running.
       p->state = RUNNING;
 
       swtch(&(c->scheduler), p->context);
@@ -436,8 +496,10 @@ sched(void)
 void
 yield(void)
 {
+  struct proc *p;
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
+  p = myproc();
+  pushproc(p);
   sched();
   release(&ptable.lock);
 }
@@ -512,7 +574,7 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+      pushproc(p);
 }
 
 // Wake up all processes sleeping on chan.
@@ -538,7 +600,7 @@ kill(int pid)
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
-        p->state = RUNNABLE;
+        pushproc(p);
       release(&ptable.lock);
       return 0;
     }
@@ -574,7 +636,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %s %s %d", p->pid, state, p->name, p->priority);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
