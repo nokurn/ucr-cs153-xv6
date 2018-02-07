@@ -645,3 +645,66 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int
+getpriority(int pid)
+{
+  struct proc *p;
+  int priority;
+
+  acquire(&ptable.lock);
+  priority = -1;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      // Only retrieve the priority if the process is found and is not a
+      // zombie.
+      if(p->status != ZOMBIE)
+        priority = p->priority;
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return priority;
+}
+
+int
+setpriority(int pid, int priority)
+{
+  struct proc *p;
+  int prev;
+
+  if(priority < 0 || priority >= NPRIORITY)
+    return -1;
+
+  acquire(&ptable.lock);
+  prev = -1;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      prev = p->priority;
+
+      // Prevent double-setting of the same priority.
+      // If this was allowed, setpriority(pid, getpriority(pid)) would
+      // cause the process to move to the back of its process queue
+      // rather than being idempotent.
+      if(p->priority == priority)
+        break;
+
+      if(p->state == RUNNABLE)
+        // popproc will not change the state from RUNNABLE.  We can use
+        // this to check whether the process was queued again after
+        // changing the priority to requeue it.
+        popproc(p); // Does not change state so we can requeue.
+
+      p->priority = priority;
+
+      // If the process was queued to be run before the priority was
+      // changed, push it onto its new priority queue.
+      if(p->state == RUNNABLE)
+        pushproc(p);
+
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return prev;
+}
