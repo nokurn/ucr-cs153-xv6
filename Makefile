@@ -170,6 +170,7 @@ UPROGS=\
 	_ln\
 	_ls\
 	_mkdir\
+	_nice\
 	_renice\
 	_rm\
 	_sh\
