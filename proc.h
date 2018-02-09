@@ -40,8 +40,8 @@ struct proc {
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
-  int priority;                // Process scheduling priority
-  int gpriority;               // Given process scheduling priority
+  int rpriority;               // Requested process scheduling priority
+  int epriority;               // Effective process scheduling priority
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
