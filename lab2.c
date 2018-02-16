@@ -1,5 +1,6 @@
 #include "types.h"
 #include "procstat.h"
+#include "fcntl.h"
 #include "user.h"
 
 static void
@@ -155,6 +156,94 @@ testaging(void)
   printf(1, "\n");
 }
 
+static void
+testdonation(void)
+{
+  int fd;
+  int lpid, mpid, hpid;
+  int i;
+  struct procstat st;
+
+  printf(1, "Lab 2:\n");
+  printf(1, "Testing the priority donation\n");
+
+  lpid = fork();
+  if(lpid == 0){
+    setpriority(getpid(), 31); // Start at the lowest priority
+
+    fd = open("testdonation", O_CREATE | O_RDWR);
+    if(fd < 0){
+      printf(2, "  Error opening test file\n");
+      exit(-1);
+    }
+
+    for(i = 0; i < 100; i++){
+      if(write(fd, "aaaaaaaaaa", 10) != 10){
+        printf(2, "  Error writing to test file\n");
+        exit(-1);
+      }
+      if(write(fd, "bbbbbbbbbb", 10) != 10){
+        printf(2, "  Error writing to test file\n");
+        exit(-1);
+      }
+    }
+
+    exit(0);
+  }
+  else if(lpid < 0){
+    printf(2, "  Error using fork\n");
+    exit(-1);
+  }
+
+  hpid = fork();
+  if(hpid == 0){
+    sleep(25);
+    setpriority(getpid(), 0); // Start at the highest priority
+
+    fd = open("testdonation", O_CREATE | O_RDWR);
+    if(fd < 0){
+      printf(2, "  Error opening test file\n");
+      exit(-1);
+    }
+
+    for(i = 0; i < 100; i++){
+      if(write(fd, "aaaaaaaaaa", 10) != 10){
+        printf(2, "  Error writing to test file\n");
+        exit(-1);
+      }
+      if(write(fd, "bbbbbbbbbb", 10) != 10){
+        printf(2, "  Error writing to test file\n");
+        exit(-1);
+      }
+    }
+
+    exit(0);
+  }
+  else if(hpid < 0){
+    printf(2, "  Error using fork\n");
+    exit(-1);
+  }
+
+  mpid = fork();
+  if(mpid == 0){
+    setpriority(getpid(), 15); // Start at the medium priority
+
+    do{
+      if(pstat(lpid, &st) < 0)
+        break;
+    } while(st.state != P_ZOMBIE);
+
+    exit(0);
+  }
+  else if(mpid < 0){
+    printf(2, "  Error using fork\n");
+    exit(-1);
+  }
+
+  for(i = 0; i < 3; i++)
+    wait(0); // Reap the children
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -166,10 +255,13 @@ main(int argc, char *argv[])
     testpstat();
   else if(atoi(argv[1]) == 3)
     testaging();
+  else if(atoi(argv[1]) == 4)
+    testdonation();
   else{
     printf(1, "Run `lab2 1` to test the priority scheduler\n");
     printf(1, "Run `lab2 2` to test the process statistics\n");
     printf(1, "Run `lab2 3` to test the process aging\n");
+    printf(1, "Run `lab2 4` to test the process donation\n");
   }
 
   // End of test
