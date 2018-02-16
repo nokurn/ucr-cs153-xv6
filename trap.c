@@ -26,6 +26,17 @@ tvinit(void)
   initlock(&tickslock, "time");
 }
 
+uint
+uptime(void)
+{
+  uint xticks;
+
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+  return xticks;
+}
+
 void
 idtinit(void)
 {
