@@ -108,7 +108,16 @@ int
 main(int argc, char *argv[])
 {
   printf(1, "This program tests the correctness of lab #2\n");
-  testmlfq();
-  testpstat();
+
+  if(atoi(argv[1]) == 1)
+    testmlfq();
+  else if(atoi(argv[1]) == 2)
+    testpstat();
+  else{
+    printf(1, "Run `lab2 1` to test the priority scheduler\n");
+    printf(1, "Run `lab2 2` to test the process statistics\n");
+  }
+
+  // End of test
   exit(0);
 }
