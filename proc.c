@@ -90,7 +90,7 @@ pushproc(struct proc *p)
     panic("pushproc: full process queue");
 
   p->stat.state = P_RUNNABLE;
-  p->stat.tenter = uptime();
+  p->stat.tenter = ticks;
   if(p->stat.tfirst == -1)
     p->stat.tfirst = p->stat.tenter;
   pq[i] = p;
@@ -150,7 +150,7 @@ found:
   // Start at the highest priority
   p->stat.rpriority = 0;
   p->stat.epriority = 0;
-  p->stat.tcreate = uptime();
+  p->stat.tcreate = ticks;
   p->stat.texit = -1;
   p->stat.tfirst = -1;
   p->stat.tlast = -1;
@@ -314,7 +314,7 @@ exit(int status)
 
   // Store the provided exit status and the time of the exit.
   curproc->stat.status = status;
-  curproc->stat.texit = uptime();
+  curproc->stat.texit = ticks;
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -502,7 +502,7 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       popproc(p); // Remove from the priority queue while running.
-      p->stat.tlast = uptime();
+      p->stat.tlast = ticks;
       p->stat.atready = (p->stat.tenter + p->stat.nready *
           p->stat.atready) / (p->stat.nready + 1);
       p->stat.nready++;
@@ -608,7 +608,7 @@ sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
-  p->stat.tenter = uptime();
+  p->stat.tenter = ticks;
   p->stat.state = P_SLEEPING;
   if(p->stat.epriority > 0)
     p->stat.epriority--; // Increase priority when waiting.
