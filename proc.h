@@ -32,17 +32,13 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+#include "procstat.h"
 
 // Per-process state
 struct proc {
-  uint sz;                     // Size of process memory (bytes)
+  struct procstat stat;        // Process statistics
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
-  int rpriority;               // Requested process scheduling priority
-  int epriority;               // Effective process scheduling priority
-  int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
@@ -50,8 +46,6 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
-  int status;                  // Exit status
 };
 
 // Process memory is laid out contiguously, low addresses first:

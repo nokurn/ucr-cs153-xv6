@@ -19,7 +19,7 @@ fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz || addr+4 > curproc->sz)
+  if(addr >= curproc->stat.sz || addr+4 > curproc->stat.sz)
     return -1;
   *ip = *(int*)(addr);
   return 0;
@@ -34,10 +34,10 @@ fetchstr(uint addr, char **pp)
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz)
+  if(addr >= curproc->stat.sz)
     return -1;
   *pp = (char*)addr;
-  ep = (char*)curproc->sz;
+  ep = (char*)curproc->stat.sz;
   for(s = *pp; s < ep; s++){
     if(*s == 0)
       return s - *pp;
@@ -63,7 +63,8 @@ argptr(int n, char **pp, int size)
  
   if(argint(n, &i) < 0)
     return -1;
-  if(size < 0 || (uint)i >= curproc->sz || (uint)i+size > curproc->sz)
+  if(size < 0 || (uint)i >= curproc->stat.sz || (uint)i+size >
+      curproc->stat.sz)
     return -1;
   *pp = (char*)i;
   return 0;
@@ -145,7 +146,7 @@ syscall(void)
     curproc->tf->eax = syscalls[num]();
   } else {
     cprintf("%d %s: unknown sys call %d\n",
-            curproc->pid, curproc->name, num);
+            curproc->stat.pid, curproc->stat.name, num);
     curproc->tf->eax = -1;
   }
 }

@@ -74,10 +74,10 @@ pushproc(struct proc *p)
   struct proc **pq;
   int i;
 
-  if(p == 0 || p->epriority < 0 || p->epriority >= NPRIORITY)
+  if(p == 0 || p->stat.epriority < 0 || p->stat.epriority >= NPRIORITY)
     panic("pushproc: bad process or priority");
 
-  pq = ptable.pq[p->epriority];
+  pq = ptable.pq[p->stat.epriority];
   for(i = 0; i < NPROC && pq[i] != 0; i++){
     // If the process is already in the queue, don't push it.
     if(pq[i] == p){
@@ -89,7 +89,7 @@ pushproc(struct proc *p)
   if(i == NPROC)
     panic("pushproc: full process queue");
 
-  p->state = RUNNABLE;
+  p->stat.state = P_RUNNABLE;
   pq[i] = p;
 }
 
@@ -103,10 +103,10 @@ popproc(struct proc *p)
   int i;
   int shift;
 
-  if(p == 0 || p->epriority < 0 || p->epriority >= NPRIORITY)
+  if(p == 0 || p->stat.epriority < 0 || p->stat.epriority >= NPRIORITY)
     panic("popproc: bad process or priority");
 
-  pq = ptable.pq[p->epriority];
+  pq = ptable.pq[p->stat.epriority];
   for(i = 0, shift = 0; i < NPROC && pq[i] != 0; i++){
     if(pq[i] == p)
       shift = 1;
@@ -134,25 +134,25 @@ allocproc(void)
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
+    if(p->stat.state == P_UNUSED)
       goto found;
 
   release(&ptable.lock);
   return 0;
 
 found:
-  p->state = EMBRYO;
-  p->pid = nextpid++;
-  p->status = 0;
+  p->stat.state = P_EMBRYO;
+  p->stat.pid = nextpid++;
+  p->stat.status = 0;
   // Start at the highest priority
-  p->rpriority = 0;
-  p->epriority = 0;
+  p->stat.rpriority = 0;
+  p->stat.epriority = 0;
 
   release(&ptable.lock);
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
-    p->state = UNUSED;
+    p->stat.state = P_UNUSED;
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -188,7 +188,7 @@ userinit(void)
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
-  p->sz = PGSIZE;
+  p->stat.sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -198,7 +198,7 @@ userinit(void)
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
 
-  safestrcpy(p->name, "initcode", sizeof(p->name));
+  safestrcpy(p->stat.name, "initcode", sizeof(p->stat.name));
   p->cwd = namei("/");
 
   // this assignment to p->state lets other cores
@@ -220,7 +220,7 @@ growproc(int n)
   uint sz;
   struct proc *curproc = myproc();
 
-  sz = curproc->sz;
+  sz = curproc->stat.sz;
   if(n > 0){
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
@@ -228,7 +228,7 @@ growproc(int n)
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
-  curproc->sz = sz;
+  curproc->stat.sz = sz;
   switchuvm(curproc);
   return 0;
 }
@@ -249,18 +249,18 @@ fork(void)
   }
 
   // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->stat.sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
-    np->state = UNUSED;
+    np->stat.state = P_UNUSED;
     return -1;
   }
-  np->sz = curproc->sz;
+  np->stat.sz = curproc->stat.sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
   // Inherit the priority of the parent process
-  np->rpriority = curproc->rpriority;
-  np->epriority = curproc->rpriority;
+  np->stat.rpriority = curproc->stat.rpriority;
+  np->stat.epriority = curproc->stat.rpriority;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -270,9 +270,10 @@ fork(void)
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
 
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  safestrcpy(np->stat.name, curproc->stat.name,
+      sizeof(curproc->stat.name));
 
-  pid = np->pid;
+  pid = np->stat.pid;
 
   acquire(&ptable.lock);
 
@@ -297,7 +298,7 @@ exit(int status)
     panic("init exiting");
 
   // Store the provided exit status.
-  curproc->status = status;
+  curproc->stat.status = status;
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -321,13 +322,13 @@ exit(int status)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
       p->parent = initproc;
-      if(p->state == ZOMBIE)
+      if(p->stat.state == P_ZOMBIE)
         wakeup1(initproc);
     }
   }
 
   // Jump into the scheduler, never to return.
-  curproc->state = ZOMBIE;
+  curproc->stat.state = P_ZOMBIE;
   sched();
   panic("zombie exit");
 }
@@ -349,19 +350,19 @@ wait(int *status)
       if(p->parent != curproc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+      if(p->stat.state == P_ZOMBIE){
         // Found one.
-        pid = p->pid;
+        pid = p->stat.pid;
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
-        p->pid = 0;
+        p->stat.pid = 0;
         p->parent = 0;
-        p->name[0] = 0;
+        p->stat.name[0] = 0;
         p->killed = 0;
-        p->state = UNUSED;
+        p->stat.state = P_UNUSED;
         if(status != 0){
-          *status = p->status;
+          *status = p->stat.status;
         }
         release(&ptable.lock);
         return pid;
@@ -389,30 +390,30 @@ waitpid(int pid, int *status, int options)
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+    if(p->stat.pid == pid){
       // Once the process is found, sleep while waiting for it to become a
       // zombie.  In case the ZOMBIE state is consumed somewhere else, also
       // check for an UNUSED state to ensure that we do not wait forever.
-      while(p->state != UNUSED && p->state != ZOMBIE){
+      while(p->stat.state != P_UNUSED && p->stat.state != P_ZOMBIE){
         sleep(curproc, &ptable.lock);
       }
-      if(p->state == ZOMBIE){
+      if(p->stat.state == P_ZOMBIE){
         // If we caught the process in a ZOMBIE state, clean up.
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
         p->parent = 0;
-        p->name[0] = 0;
+        p->stat.name[0] = 0;
         p->killed = 0;
-        p->state = UNUSED;
+        p->stat.state = P_UNUSED;
       }
       // Either way, reset the pid and copy the status out (if requested).
       // Even if we caught the process in an UNUSED state, only the alloc and
       // exit functions modify the status, so it should still be the one set
       // when the process exited and is safe to copy.
-      p->pid = 0;
+      p->stat.pid = 0;
       if(status != 0){
-        *status = p->status;
+        *status = p->stat.status;
       }
       release(&ptable.lock);
       return pid;
@@ -456,7 +457,7 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       popproc(p); // Remove from the priority queue while running.
-      p->state = RUNNING;
+      p->stat.state = P_RUNNING;
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
@@ -488,7 +489,7 @@ sched(void)
     panic("sched ptable.lock");
   if(mycpu()->ncli != 1)
     panic("sched locks");
-  if(p->state == RUNNING)
+  if(p->stat.state == P_RUNNING)
     panic("sched running");
   if(readeflags()&FL_IF)
     panic("sched interruptible");
@@ -504,8 +505,8 @@ yield(void)
   struct proc *p;
   acquire(&ptable.lock);  //DOC: yieldlock
   p = myproc();
-  if(p->epriority < NPRIORITY - 1)
-    p->epriority++; // Reduce priority after being preempted.
+  if(p->stat.epriority < NPRIORITY - 1)
+    p->stat.epriority++; // Reduce priority after being preempted.
   pushproc(p);
   sched();
   release(&ptable.lock);
@@ -557,9 +558,9 @@ sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
-  p->state = SLEEPING;
-  if(p->epriority > 0)
-    p->epriority--; // Increase priority when waiting.
+  p->stat.state = P_SLEEPING;
+  if(p->stat.epriority > 0)
+    p->stat.epriority--; // Increase priority when waiting.
 
   sched();
 
@@ -582,7 +583,7 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->stat.state == P_SLEEPING && p->chan == chan)
       pushproc(p);
 }
 
@@ -605,10 +606,10 @@ kill(int pid)
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+    if(p->stat.pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->stat.state == P_SLEEPING)
         pushproc(p);
       release(&ptable.lock);
       return 0;
@@ -626,12 +627,12 @@ void
 procdump(void)
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [P_UNUSED]    "unused",
+  [P_EMBRYO]    "embryo",
+  [P_SLEEPING]  "sleep ",
+  [P_RUNNABLE]  "runble",
+  [P_RUNNING]   "run   ",
+  [P_ZOMBIE]    "zombie"
   };
   int i;
   struct proc *p;
@@ -639,15 +640,16 @@ procdump(void)
   uint pc[10];
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == UNUSED)
+    if(p->stat.state == P_UNUSED)
       continue;
-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
-      state = states[p->state];
+    if(p->stat.state >= 0 && p->stat.state < NELEM(states) &&
+        states[p->stat.state])
+      state = states[p->stat.state];
     else
       state = "???";
-    cprintf("%d %s %s %d %d", p->pid, state, p->name, p->rpriority,
-        p->epriority);
-    if(p->state == SLEEPING){
+    cprintf("%d %s %s %d %d", p->stat.pid, state, p->stat.name,
+        p->stat.rpriority, p->stat.epriority);
+    if(p->stat.state == P_SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);
@@ -665,11 +667,11 @@ getpriority(int pid)
   acquire(&ptable.lock);
   priority = -1;
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+    if(p->stat.pid == pid){
       // Only retrieve the priority if the process is found and is not a
       // zombie.
-      if(p->status != ZOMBIE)
-        priority = p->rpriority;
+      if(p->stat.status != P_ZOMBIE)
+        priority = p->stat.rpriority;
       break;
     }
   }
@@ -689,8 +691,8 @@ setpriority(int pid, int priority)
   acquire(&ptable.lock);
   prev = -1;
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
-      prev = p->rpriority;
+    if(p->stat.pid == pid){
+      prev = p->stat.rpriority;
 
       // Prevent double-setting of the same priority.
       // If this was allowed, setpriority(pid, getpriority(pid)) would
@@ -699,18 +701,18 @@ setpriority(int pid, int priority)
       if(prev == priority)
         break;
 
-      if(p->state == RUNNABLE)
+      if(p->stat.state == P_RUNNABLE)
         // popproc will not change the state from RUNNABLE.  We can use
         // this to check whether the process was queued again after
         // changing the priority to requeue it.
         popproc(p); // Does not change state so we can requeue.
 
-      p->rpriority = priority;
-      p->epriority = priority;
+      p->stat.rpriority = priority;
+      p->stat.epriority = priority;
 
       // If the process was queued to be run before the priority was
       // changed, push it onto its new priority queue.
-      if(p->state == RUNNABLE)
+      if(p->stat.state == P_RUNNABLE)
         pushproc(p);
 
       break;

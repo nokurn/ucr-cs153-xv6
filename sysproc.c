@@ -63,7 +63,7 @@ sys_kill(void)
 int
 sys_getpid(void)
 {
-  return myproc()->pid;
+  return myproc()->stat.pid;
 }
 
 int
@@ -74,7 +74,7 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+  addr = myproc()->stat.sz;
   if(growproc(n) < 0)
     return -1;
   return addr;

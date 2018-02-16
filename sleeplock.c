@@ -22,12 +22,15 @@ initsleeplock(struct sleeplock *lk, char *name)
 void
 acquiresleep(struct sleeplock *lk)
 {
+  struct proc *p;
+
+  p = myproc();
   acquire(&lk->lk);
   while (lk->locked) {
     sleep(lk, &lk->lk);
   }
   lk->locked = 1;
-  lk->pid = myproc()->pid;
+  lk->pid = p->stat.pid;
   release(&lk->lk);
 }
 
