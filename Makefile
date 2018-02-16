@@ -167,6 +167,7 @@ UPROGS=\
 	_init\
 	_kill\
 	_lab1\
+	_lab2\
 	_ln\
 	_ls\
 	_mkdir\
