@@ -104,6 +104,57 @@ testpstat(void)
   }
 }
 
+static void
+testaging(void)
+{
+  int pid;
+  int i, j;
+  struct procstat st;
+
+  printf(1, "Lab 2:\n");
+  printf(1, "Testing the process aging\n");
+
+  pid = fork();
+  if(pid == 0){
+    printf(1, "  Initializing priority to 15\n");
+    setpriority(getpid(), 15);
+
+    // Use up cycles to reduce priority
+    printf(1, "\n  Wasting time to reduce priority\n");
+    for(i = 0; i < 50000; i++)
+      for(j = 0; j < 10000; j++)
+        asm("nop");
+
+    // Sleep to increase priority
+    printf(1, "\n  Taking naps to increase priority\n");
+    for(i = 0; i < 100; i++)
+      sleep(1);
+
+    exit(0);
+  }
+  else if(pid < 0){
+    printf(2, "  Error using fork\n");
+    exit(-1);
+  }
+
+  printf(1, "Priority:");
+  i = 0;
+  do{
+    if(pstat(pid, &st) < 0){
+      printf(2, "  Error using pstat\n");
+      exit(-1);
+    }
+
+    if(st.epriority != i){
+      printf(1, " %d", i);
+      i = st.epriority;
+    }
+  } while (st.state != P_ZOMBIE);
+  wait(0); // Reap the child
+
+  printf(1, "\n");
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -113,9 +164,12 @@ main(int argc, char *argv[])
     testmlfq();
   else if(atoi(argv[1]) == 2)
     testpstat();
+  else if(atoi(argv[1]) == 3)
+    testaging();
   else{
     printf(1, "Run `lab2 1` to test the priority scheduler\n");
     printf(1, "Run `lab2 2` to test the process statistics\n");
+    printf(1, "Run `lab2 3` to test the process aging\n");
   }
 
   // End of test
