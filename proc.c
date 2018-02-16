@@ -797,3 +797,21 @@ pstat(int pid, struct procstat *st)
   release(&ptable.lock);
   return -1;
 }
+
+// Return the struct proc for a given PID or 0 if no such process
+// can be found
+struct proc*
+getproc(int pid)
+{
+  struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->stat.pid == pid){
+      release(&ptable.lock);
+      return p;
+    }
+  }
+  release(&ptable.lock);
+  return 0;
+}

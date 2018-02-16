@@ -125,6 +125,7 @@ void            yield(void);
 int             getpriority(int);
 int             setpriority(int, int);
 int             pstat(int, struct procstat*);
+struct proc*    getproc(int);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
