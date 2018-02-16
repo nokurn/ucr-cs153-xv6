@@ -776,3 +776,20 @@ setpriority(int pid, int priority)
   release(&ptable.lock);
   return prev;
 }
+
+int
+pstat(int pid, struct procstat *st)
+{
+  struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->stat.pid == pid){
+      memmove(st, &p->stat, sizeof(*st));
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}

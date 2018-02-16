@@ -131,3 +131,16 @@ sys_setpriority(void)
     return -1;
   return setpriority(pid, priority);
 }
+
+int
+sys_pstat(void)
+{
+  int pid;
+  struct procstat *st;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argptr(1, (void*)&st, sizeof(*st)) < 0)
+    return -1;
+  return pstat(pid, st);
+}

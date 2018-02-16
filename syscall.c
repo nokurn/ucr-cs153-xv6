@@ -98,6 +98,7 @@ extern int sys_mkdir(void);
 extern int sys_mknod(void);
 extern int sys_open(void);
 extern int sys_pipe(void);
+extern int sys_pstat(void);
 extern int sys_read(void);
 extern int sys_sbrk(void);
 extern int sys_setpriority(void);
@@ -124,6 +125,7 @@ static int (*syscalls[])(void) = {
 [SYS_mknod]       sys_mknod,
 [SYS_open]        sys_open,
 [SYS_pipe]        sys_pipe,
+[SYS_pstat]       sys_pstat,
 [SYS_read]        sys_read,
 [SYS_sbrk]        sys_sbrk,
 [SYS_setpriority] sys_setpriority,

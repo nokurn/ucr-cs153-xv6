@@ -1,3 +1,4 @@
+struct procstat;
 struct stat;
 struct rtcdate;
 
@@ -26,6 +27,7 @@ int uptime(void);
 int waitpid(int, int*, int);
 int getpriority(int);
 int setpriority(int, int);
+int pstat(int, struct procstat*);
 
 // ulib.c
 int stat(char*, struct stat*);
