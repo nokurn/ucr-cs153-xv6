@@ -367,11 +367,15 @@ exit(int status)
   cprintf("|   nready    = %d\n", curproc->stat.nready);
   cprintf("|   nwait     = %d\n", curproc->stat.nwait);
   cprintf("|   nyield    = %d\n", curproc->stat.nyield);
-  cprintf("|   turn      = %d\n",
-      curproc->stat.texit - curproc->stat.tcreate);
-  cprintf("|   norm turn = %d\n",
-      (curproc->stat.texit - curproc->stat.tcreate) /
-      curproc->stat.nyield);
+  if(curproc->stat.texit > 0){
+    cprintf("|   turn      = %d\n",
+        curproc->stat.texit - curproc->stat.tcreate);
+    if(curproc->stat.nyield > 0){
+      cprintf("|   norm turn = %d\n",
+          (curproc->stat.texit - curproc->stat.tcreate) /
+          curproc->stat.nyield);
+    }
+  }
   cprintf("+-----------------------------\n");
 
   sched();

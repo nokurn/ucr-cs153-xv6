@@ -89,8 +89,10 @@ testpstat(void)
       printf(1, "    nyield    = %d\n", st.nyield);
       if(st.texit > 0){
         printf(1, "    turn      = %d\n", st.texit - st.tcreate);
-        printf(1, "    norm turn = %d\n", (st.texit - st.tcreate) /
-            st.nyield);
+        if(st.nyield > 0){
+          printf(1, "    norm turn = %d\n", (st.texit - st.tcreate) /
+              st.nyield);
+        }
       }
     } while (st.state != P_ZOMBIE);
     wait(0); // Reap the child
