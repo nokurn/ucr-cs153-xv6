@@ -345,6 +345,35 @@ exit(int status)
 
   // Jump into the scheduler, never to return.
   curproc->stat.state = P_ZOMBIE;
+
+  // Dump procstat
+  cprintf("+-----------------------------\n");
+  cprintf("| PROCESS EXIT-TIME STATISTICS\n");
+  cprintf("|   pid       = %d\n", curproc->stat.pid);
+  cprintf("|   parent    = %d\n", curproc->stat.parent);
+  cprintf("|   name      = %s\n", curproc->stat.name);
+  cprintf("|   state     = %d\n", curproc->stat.state);
+  cprintf("|   status    = %d\n", curproc->stat.status);
+  cprintf("|   sz        = %d\n", curproc->stat.sz);
+  cprintf("|   rpriority = %d\n", curproc->stat.rpriority);
+  cprintf("|   epriority = %d\n", curproc->stat.epriority);
+  cprintf("|   tcreate   = %d\n", curproc->stat.tcreate);
+  cprintf("|   texit     = %d\n", curproc->stat.texit);
+  cprintf("|   tfirst    = %d\n", curproc->stat.tfirst);
+  cprintf("|   tlast     = %d\n", curproc->stat.tlast);
+  cprintf("|   tenter    = %d\n", curproc->stat.tenter);
+  cprintf("|   atready   = %d\n", curproc->stat.atready);
+  cprintf("|   atwait    = %d\n", curproc->stat.atwait);
+  cprintf("|   nready    = %d\n", curproc->stat.nready);
+  cprintf("|   nwait     = %d\n", curproc->stat.nwait);
+  cprintf("|   nyield    = %d\n", curproc->stat.nyield);
+  cprintf("|   turn      = %d\n",
+      curproc->stat.texit - curproc->stat.tcreate);
+  cprintf("|   norm turn = %d\n",
+      (curproc->stat.texit - curproc->stat.tcreate) /
+      curproc->stat.nyield);
+  cprintf("+-----------------------------\n");
+
   sched();
   panic("zombie exit");
 }
