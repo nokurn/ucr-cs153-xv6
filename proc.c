@@ -90,6 +90,9 @@ pushproc(struct proc *p)
     panic("pushproc: full process queue");
 
   p->stat.state = P_RUNNABLE;
+  p->stat.tenter = uptime();
+  if(p->stat.tfirst == -1)
+    p->stat.tfirst = p->stat.tenter;
   pq[i] = p;
 }
 
@@ -147,6 +150,16 @@ found:
   // Start at the highest priority
   p->stat.rpriority = 0;
   p->stat.epriority = 0;
+  p->stat.tcreate = uptime();
+  p->stat.texit = -1;
+  p->stat.tfirst = -1;
+  p->stat.tlast = -1;
+  p->stat.tenter = -1;
+  p->stat.atready = 0;
+  p->stat.atwait = 0;
+  p->stat.nready = 0;
+  p->stat.nwait = 0;
+  p->stat.nyield = 0;
 
   release(&ptable.lock);
 
@@ -190,6 +203,7 @@ userinit(void)
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->stat.sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
+  p->stat.parent = p->stat.pid; // To users, init is its own parent
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
   p->tf->es = p->tf->ds;
@@ -257,6 +271,7 @@ fork(void)
   }
   np->stat.sz = curproc->stat.sz;
   np->parent = curproc;
+  np->stat.parent = curproc->stat.pid;
   *np->tf = *curproc->tf;
   // Inherit the priority of the parent process
   np->stat.rpriority = curproc->stat.rpriority;
@@ -297,8 +312,9 @@ exit(int status)
   if(curproc == initproc)
     panic("init exiting");
 
-  // Store the provided exit status.
+  // Store the provided exit status and the time of the exit.
   curproc->stat.status = status;
+  curproc->stat.texit = uptime();
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -457,6 +473,10 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       popproc(p); // Remove from the priority queue while running.
+      p->stat.tlast = uptime();
+      p->stat.atready = (p->stat.tenter + p->stat.nready *
+          p->stat.atready) / (p->stat.nready + 1);
+      p->stat.nready++;
       p->stat.state = P_RUNNING;
 
       swtch(&(c->scheduler), p->context);
@@ -507,6 +527,7 @@ yield(void)
   p = myproc();
   if(p->stat.epriority < NPRIORITY - 1)
     p->stat.epriority++; // Reduce priority after being preempted.
+  p->stat.nyield++;
   pushproc(p);
   sched();
   release(&ptable.lock);
@@ -558,6 +579,7 @@ sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
+  p->stat.tenter = uptime();
   p->stat.state = P_SLEEPING;
   if(p->stat.epriority > 0)
     p->stat.epriority--; // Increase priority when waiting.
@@ -583,8 +605,12 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->stat.state == P_SLEEPING && p->chan == chan)
+    if(p->stat.state == P_SLEEPING && p->chan == chan){
+      p->stat.atwait = (p->stat.tenter + p->stat.nwait * p->stat.atwait)
+        / (p->stat.nwait + 1);
+      p->stat.nwait++;
       pushproc(p);
+    }
 }
 
 // Wake up all processes sleeping on chan.

@@ -22,6 +22,10 @@ struct procstat {
   int tfirst;    // Time of first schedule
   int tlast;     // Time of most recent schedule
   int tenter;    // Time of entering the current queue
-  int atr;       // Average time in the ready queue
-  int atw;       // Average time in the wait queue
+  // These values are 0 if they have not yet been sampled
+  int atready;   // Average time in the ready queue
+  int atwait;    // Average time in the wait queue
+  int nready;    // Number of times moving from ready to running
+  int nwait;     // Number of times moving from running to wait
+  int nyield;    // Number of times being preempted
 };
