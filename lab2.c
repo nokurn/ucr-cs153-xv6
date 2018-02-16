@@ -37,7 +37,7 @@ testmlfq(void)
   if(pid > 0){
     for(i = 0; i < 3; i++){
       pid = wait(&priority);
-      printf(1, "  Reaped child %d with priority %d\n", priority);
+      printf(1, "  Reaped child %d with priority %d\n", pid, priority);
     }
   }
 }
