@@ -91,6 +91,7 @@ pushproc(struct proc *p)
 
   p->stat.state = P_RUNNABLE;
   p->stat.tenter = ticks;
+  p->stat.nready++;
   if(p->stat.tfirst == -1)
     p->stat.tfirst = p->stat.tenter;
   pq[i] = p;
@@ -507,9 +508,8 @@ scheduler(void)
       switchuvm(p);
       popproc(p); // Remove from the priority queue while running.
       p->stat.tlast = ticks;
-      p->stat.atready = (p->stat.tenter + p->stat.nready *
-          p->stat.atready) / (p->stat.nready + 1);
-      p->stat.nready++;
+      p->stat.atready = ((ticks - p->stat.tenter) + (p->stat.nready - 1)
+          * p->stat.atready) / p->stat.nready;
       p->stat.state = P_RUNNING;
 
       swtch(&(c->scheduler), p->context);
@@ -613,6 +613,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->stat.tenter = ticks;
+  p->stat.nwait++;
   p->stat.state = P_SLEEPING;
   if(p->stat.epriority > 0)
     p->stat.epriority--; // Increase priority when waiting.
@@ -639,9 +640,8 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->stat.state == P_SLEEPING && p->chan == chan){
-      p->stat.atwait = (p->stat.tenter + p->stat.nwait * p->stat.atwait)
-        / (p->stat.nwait + 1);
-      p->stat.nwait++;
+      p->stat.atwait = ((ticks - p->stat.tenter) + (p->stat.nwait - 1) *
+          p->stat.atwait) / p->stat.nwait;
       pushproc(p);
     }
 }
