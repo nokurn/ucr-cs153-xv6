@@ -8,6 +8,7 @@ int
 main(int argc, char *argv[])
 {
   int priority;
+  int i;
   char *pargv[MAXARGS];
 
   if(argc < 3){
@@ -25,9 +26,10 @@ main(int argc, char *argv[])
     priority = 0;
   else if(priority >= NPRIORITY)
     priority = NPRIORITY - 1;
-  for(int i = 2; i < argc; i++)
+  for(i = 2; i < argc; i++)
     pargv[i - 2] = argv[i];
 
   setpriority(getpid(), priority);
   exec(pargv[0], pargv);
+  exit(0);
 }
