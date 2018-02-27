@@ -7,6 +7,41 @@
 #include "x86.h"
 #include "syscall.h"
 
+// Determines if a region of memory is within a user heap.
+static int
+inheap(uint addr, uint sz, struct proc *p)
+{
+  if(addr+sz <= p->sz)
+    return 1;
+  return 0;
+}
+
+// Determines if a region of memory is within a user stack.
+static int
+instack(uint addr, uint sz, struct proc *p)
+{
+  uint spt, spb;
+
+  // If ssz is 0, as in the case of the init process, the stack is within the
+  // heap.
+  if(p->ssz == 0)
+    return inheap(addr, sz, p);
+
+  spt = KERNBASE - 1;
+  spb = KERNBASE - p->ssz*PGSIZE;
+
+  if(addr >= spb && addr+sz <= spt)
+    return 1;
+  return 0;
+}
+
+// Determines if a region of memory is within a process's memory.
+static int
+inproc(uint addr, uint sz, struct proc *p)
+{
+  return inheap(addr, sz, p) || instack(addr, sz, p);
+}
+
 // User code makes a system call with INT T_SYSCALL.
 // System call number in %eax.
 // Arguments on the stack, from the user call to the C
@@ -19,7 +54,7 @@ fetchint(uint addr, int *ip)
 {
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz || addr+4 > curproc->sz)
+  if(!inproc(addr, sizeof(int), curproc))
     return -1;
   *ip = *(int*)(addr);
   return 0;
@@ -34,10 +69,17 @@ fetchstr(uint addr, char **pp)
   char *s, *ep;
   struct proc *curproc = myproc();
 
-  if(addr >= curproc->sz)
+  // The end pointer depends on what region of memory the address is in.
+  // If the address is in the code + data + heap region, the end pointer is
+  // the size of that region.  If it's in the stack, the end pointer is the
+  // top of the stack.  Otherwise, the address is invalid.
+  if(addr < curproc->sz)
+    ep = (char*)curproc->sz;
+  else if(instack(addr, sizeof(char*), curproc))
+    ep = (char*)(KERNBASE - 1);
+  else
     return -1;
   *pp = (char*)addr;
-  ep = (char*)curproc->sz;
   for(s = *pp; s < ep; s++){
     if(*s == 0)
       return s - *pp;
@@ -63,7 +105,7 @@ argptr(int n, char **pp, int size)
  
   if(argint(n, &i) < 0)
     return -1;
-  if(size < 0 || (uint)i >= curproc->sz || (uint)i+size > curproc->sz)
+  if(size < 0 || !inproc(i, size, curproc))
     return -1;
   *pp = (char*)i;
   return 0;
