@@ -154,6 +154,23 @@ userinit(void)
   release(&ptable.lock);
 }
 
+// Grow current process's stack by one page.
+// Return 0 on success, -1 on failure.
+int
+growstack(void)
+{
+  uint first, last;
+  struct proc *curproc = myproc();
+
+  first = PGROUNDUP(KERNBASE - (curproc->ssz + 1) * PGSIZE);
+  last = KERNBASE - curproc->ssz * PGSIZE - 1;
+  if(allocuvm(curproc->pgdir, first, last) == 0)
+    return -1;
+  curproc->ssz++;
+  switchuvm(curproc);
+  return 0;
+}
+
 // Grow current process's memory by n bytes.
 // Return 0 on success, -1 on failure.
 int

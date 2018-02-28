@@ -36,6 +36,9 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  uint addr;
+  struct proc *curproc;
+
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -44,6 +47,31 @@ trap(struct trapframe *tf)
     if(myproc()->killed)
       exit();
     return;
+  }
+
+  // When the trap is a page fault exception caused by an attempted write to
+  // an absent page in user mode, attempt to recover by growing the stack.
+  // Other types of page faults should continue on to the trap error handler.
+  // Examples are protection violations, reads, and errors in ring 0.
+  if(tf->trapno == T_PGFLT && (tf->err & 0x7) == 0x6) {
+    addr = rcr2(); // Get the address from CR2.
+    curproc = myproc(); // Get the process that caused the fault.
+
+    // Only grow the stack if the write was in the page preceding the bottom
+    // of the stack.
+    if(addr >= KERNBASE - (curproc->ssz + 1) * PGSIZE &&
+        addr < KERNBASE - curproc->ssz * PGSIZE){
+      if(growstack() == 0){
+        cprintf("pid %d %s: growing stack to %d pages (%d KiB)\n",
+            curproc->pid, curproc->name, curproc->ssz,
+            curproc->ssz * PGSIZE / 1024);
+        return;
+      }
+      cprintf("pid %d %s: unable to grow stack past %d pages (%d KiB)\n",
+              curproc->pid, curproc->name, curproc->ssz,
+              curproc->ssz * PGSIZE / 1024);
+      // Continue on to the trap error handler to panic.
+    }
   }
 
   switch(tf->trapno){
