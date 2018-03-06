@@ -121,6 +121,11 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 
+// shm.c
+void            shminit(void);
+int             shm_open(int, char**);
+int             shm_close(int);
+
 // swtch.S
 void            swtch(struct context**, struct context*);
 
@@ -172,6 +177,7 @@ void            uartputc(int);
 
 // vm.c
 void            seginit(void);
+int             mappages(pde_t*, void*, uint, uint, int);
 void            kvmalloc(void);
 pde_t*          setupkvm(void);
 char*           uva2ka(pde_t*, char*);
